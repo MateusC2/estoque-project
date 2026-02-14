@@ -1,10 +1,10 @@
-# SprintFront
+# Projeto de Estoque
 
-Este é o front-end de um sistema de reservas desenvolvido durante uma Sprint.
+Este é o front-end de uma aplicação completa para gerenciamento de estoque, focada em facilitar o controle de entradas, saídas e organização de produtos.
 
 ## Descrição
 
-O projeto consiste em uma tela de login, cadastro. Desenvolvida com React e configurada com Vite. A interface utiliza componentes do Material-UI, juntamente com bibliotecas de estilização como Emotion e Styled-Components, para criar um visual limpo e moderno. O uso de Axios e React Router DOM possibilita a integração com APIs e a navegação interna entre as páginas da aplicação.
+O projeto consiste em uma interface de gerenciamento que permite a listagem geral de itens do estoque, a criação de novos itens e um sistema de filtros avançados. Os usuários podem localizar produtos rapidamente através de busca por palavras-chave ou filtragem por marcas específicas. Desenvolvida com React e configurada com Vite, a interface utiliza Material-UI para garantir um design moderno e responsivo, enquanto o Axios realiza a comunicação com a API de dados.
 
 ## Tecnologias Utilizadas
 
@@ -32,19 +32,19 @@ O projeto consiste em uma tela de login, cadastro. Desenvolvida com React e conf
 
 - [node.js](https://nodejs.org/) instalado.
 
-### Passos para Instalação da sprinFront
+### Passos para Instalação da estoque-project
 
 1. **Clonar o repositório**
 
    ```bash
-   git clone https://github.com/MariaFernandaCintra/sprintFront.git
+   git clone https://github.com/MateusC2/estoque-project.git
 
    ```
 
 2. **Entre na Pasta**
 
    ```bash
-   cd sprintFront
+   cd estoque-project
    ```
 
 3. **Instalar as Dependências**
@@ -87,14 +87,8 @@ O projeto consiste em uma tela de login, cadastro. Desenvolvida com React e conf
    npm i react-router-dom
    ```
 ### Link de Deploy
-- Vercel: `https://stock-front-pi.vercel.app/`
-
-## Documentação Completa dos Requisitos Necessários
-
-Os requisitos necessários para funcionamento pleno do projeto estão em outro repositório. Acesse-os [aqui](https://github.com/mariajuliacintra/stockApi).
+- Vercel: 
 
 ## Autores
 
 - [@MateusC2](https://github.com/MateusC2)
-- [@HyagoGabriel](https://github.com/HyagoGabriel)
-- [@mariajuliacintra](https://github.com/mariajuliacintra)
