@@ -1,0 +1,40 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: stockapi-db
+    restart: always
+    environment:
+      # Usando a variável do .env para o banco de dados
+      - MYSQL_ROOT_PASSWORD=${DATABASEPASSWORD}
+      - MYSQL_DATABASE=stock
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DATABASEPASSWORD}"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+  
+  app:
+    build: .
+    container_name: stockapi-app
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/usr/app
+      - /usr/app/node_modules
+    environment:
+      # Passando a variável do .env para a sua aplicação
+      - MYSQL_ROOT_PASSWORD=${DATABASEPASSWORD}
+      - MYSQL_DATABASE=stock
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
+    depends_on:
+      - db
+
+volumes:
+  db_data: {}
