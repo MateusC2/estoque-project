@@ -11,6 +11,15 @@ const transactionController = require("../controllers/transactionController");
 // Listar todos os itens
 router.get("/items", itemController.getAllItems); //✅
 
+// Listar todas as marcas (brands) únicas
+router.get("/items/brands", itemController.getBrands);
+
+// Rota alternativa para listas de marcas (mais curta)
+router.get("/brands", itemController.getBrands);
+
+// Criar uma nova marca
+router.post("/brands", itemController.createBrand);
+
 // Obter um item específico
 router.get("/items/:idItem", itemController.getItemById);//✅
 

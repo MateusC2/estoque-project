@@ -3,18 +3,16 @@ import {
   Box,
   Button,
   Typography,
-  Card,
-  CardContent,
-  CardActions,
   TextField,
   IconButton,
   Drawer,
   List,
   ListItem,
   ListItemText,
-  Checkbox,
+  ListItemSecondaryAction,
   Pagination,
   CircularProgress,
+  Checkbox,
   Chip,
   Stack,
 } from "@mui/material";
@@ -22,20 +20,19 @@ import MenuIcon from "@mui/icons-material/Menu";
 import HeaderPrincipal from "../components/layout/HeaderPrincipal";
 import Footer from "../components/layout/Footer";
 import api from "../services/axios";
+import { formatDateTimeBR } from "../utils/dateUtils";
 import ModalDescription from "../components/mod/ModalDescription";
 import AddItemModal from "../components/mod/AddItemModal";
 import CustomModal from "../components/mod/CustomModal";
+import QuantityModal from "../components/mod/QuantityModal";
 
 const DEFAULT_LIMIT = 15;
 
 function Itens() {
   const [search, setSearch] = useState("");
   const [itens, setItens] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [brands, setBrands] = useState([]);
+  const [selectedBrands, setSelectedBrands] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,69 +47,57 @@ function Itens() {
     message: "",
   });
 
-  const fetchCategories = async () => {
+  const fetchBrands = async () => {
     try {
-      // Assumindo que api.getCategories está definido no seu serviço axios
-      const response = await api.getCategories();
-      const data = Array.isArray(response.data.categories)
-        ? response.data.categories
-        : [];
-      setCategories(data);
-    } catch (error) {
-      console.error("Erro ao carregar categorias:", error);
+      const res = await api.getBrands();
+      const data = res.data?.data || res.data?.brands || res.data || [];
+      setBrands(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Erro ao carregar marcas', err);
+      setBrands([]);
     }
   };
 
-  const handleFilter = async (filterPage = 1) => {
+  const handleFilter = async () => {
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const filterData = {
-        name: search.trim() || "",
-        idCategory: selectedCategories.map((cat) => cat.idCategory),
-        page: filterPage,
-        limit: DEFAULT_LIMIT,
-      };
+      const searchTerm = search?.trim();
+      const hasSearch = !!searchTerm;
+      const hasBrandFilter = selectedBrands && selectedBrands.length > 0;
 
-      const hasFilters =
-        filterData.name !== "" || filterData.idCategory.length > 0;
       let response;
-      if (hasFilters) {
-        // Assumindo que api.filterItens está definido
-        response = await api.filterItens(filterData);
+      if (hasSearch || hasBrandFilter) {
+        const brandsPayload = hasBrandFilter
+          ? selectedBrands.map((b) => b.brand || b.name || b.value || b.brandValue)
+          : undefined;
+
+        const payload = {};
+        if (brandsPayload) payload.brand = brandsPayload; // sempre enviar array para múltiplas marcas (OR esperado no backend)
+        if (hasSearch) payload.description = searchTerm;
+
+        response = await (api.filterItems ? api.filterItems(payload) : api.filterItens(payload));
       } else {
-        // Assumindo que api.getItens está definido
-        response = await api.getItens({
-          params: { page: filterPage, limit: DEFAULT_LIMIT },
-        });
+        // sem paginação no backend: pega todos
+        response = await api.getItems();
       }
 
-      const itensList = response.data.items || [];
-      const paginationData = response.data.pagination;
+      const itensList = response.data?.data || response.data?.items || response.data || [];
 
-      setItens(itensList);
-      setTotalPages(paginationData?.totalPages || 1);
-      setPage(filterPage);
-
-      setErrorMessage(itensList.length === 0 ? "Nenhum item encontrado." : "");
+      setItens(Array.isArray(itensList) ? itensList : []);
+      setErrorMessage((Array.isArray(itensList) && itensList.length === 0) ? "Nenhum item encontrado." : "");
     } catch (error) {
       setErrorMessage(
         error.response?.data?.error || "Erro ao carregar os itens."
       );
       setItens([]);
-      setTotalPages(1);
     } finally {
       setLoading(false);
     }
   };
-
-  const handlePageChange = (event, newPage) => {
-    setPage(newPage);
-    handleFilter(newPage);
-  };
   const handleItemDeleteSuccess = () => {
-    handleFilter(page); 
+    handleFilter(); 
   };
 
   const handleOpenModal = (itemId) => {
@@ -120,21 +105,7 @@ function Itens() {
     setModalOpen(true);
   };
 
-  const handleSelectCategory = (category) => {
-    setSelectedCategories((prevSelectedCategories) => {
-      if (
-        prevSelectedCategories.some(
-          (cat) => cat.idCategory === category.idCategory
-        )
-      ) {
-        return prevSelectedCategories.filter(
-          (cat) => cat.idCategory !== category.idCategory
-        );
-      } else {
-        return [...prevSelectedCategories, category];
-      }
-    });
-  };
+  // categoria selection removida
 
   const handleOpenModalAdd = () => {
     setDrawerOpen(false);
@@ -146,71 +117,39 @@ function Itens() {
   };
 
   const handleAddModalSuccess = () => {
-    handleFilter(page); // Recarrega a lista principal de itens
-    fetchCategories(); // Recarrega as categorias para o Drawer/Filtro
+    handleFilter(); // Recarrega a lista principal de itens
+    fetchBrands(); // Recarrega as marcas para refletir novas marcas criadas
   };
 
   useEffect(() => {
     document.title = "Itens";
-    handleFilter(1);
-    fetchCategories();
+    handleFilter();
+    fetchBrands();
   }, []);
-
   useEffect(() => {
-    if (page !== 1) {
-      setPage(1);
-    }
-    handleFilter(1);
-  }, [search, selectedCategories]);
+    handleFilter();
+  }, [search, selectedBrands]);
+
+  const handleToggleBrand = (brand) => {
+    setSelectedBrands((prev) => {
+      const key = brand.brand || brand.name || brand.value || brand.brandValue;
+      const exists = prev.some((b) => (b.brand || b.name || b.value || b.brandValue) === key);
+      if (exists) return prev.filter((b) => (b.brand || b.name || b.value || b.brandValue) !== key);
+      return [...prev, brand];
+    });
+  };
 
   const getTitle = (item) => item.name || "";
   const getSpecs = (item) =>
     item.technicalSpecs?.map((spec) => spec.technicalSpecValue).join(", ") ||
     "";
+  // Modal para ações de quantidade
+  const [quantityModalOpen, setQuantityModalOpen] = useState(false);
+  const [selectedForQuantity, setSelectedForQuantity] = useState(null);
 
-  const CardItem = ({ item, index, onOpenModal }) => {
-    const title = getTitle(item) || `Item ${index + 1}`;
-    const specsRaw = getSpecs(item);
-    const specsPreview =
-      specsRaw.length > 140 ? specsRaw.slice(0, 140) + "..." : specsRaw;
-
-    return (
-      <Card key={item.idItem ?? index} sx={styles.card} elevation={2}>
-        <CardContent sx={{ p: 0 }}>
-          <Typography sx={styles.cardTitleCentered}>{title}</Typography>
-
-          <Typography sx={{ fontWeight: 600, mb: 0.5, mt: 1 }}>
-            Especificação técnica:
-          </Typography>
-
-          {specsPreview ? (
-            <Typography sx={styles.specs}>{specsPreview}</Typography>
-          ) : (
-            <Typography
-              sx={{ ...styles.specs, fontStyle: "italic", color: "#777" }}
-            >
-              — Nenhuma descrição cadastrada.
-            </Typography>
-          )}
-
-          {item.category?.value && (
-            <Typography sx={{ mt: 1, fontWeight: 500 }}>
-              Categoria: {item.category.value}
-            </Typography>
-          )}
-        </CardContent>
-
-        <CardActions sx={{ justifyContent: "flex-start", mt: 1, p: 0 }}>
-          <Button
-            size="small"
-            sx={styles.verMaisButton}
-            onClick={() => onOpenModal(item.idItem)}
-          >
-            Ver mais
-          </Button>
-        </CardActions>
-      </Card>
-    );
+  const openQuantityModal = (item) => {
+    setSelectedForQuantity(item);
+    setQuantityModalOpen(true);
   };
 
   return (
@@ -254,7 +193,7 @@ function Itens() {
           <TextField
             fullWidth
             variant="outlined"
-            placeholder="Filtro de produto ex: chave"
+            placeholder="Filtro de descrição ex: civic"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             size="small"
@@ -275,21 +214,23 @@ function Itens() {
             }}
           />
         </Box>
-        {/* Chips para categorias selecionadas */}
-        {selectedCategories && selectedCategories.length > 0 && (
+        {/* Marcas selecionadas (label + limpar) */}
+        {selectedBrands && selectedBrands.length > 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1, gap: 1, flexWrap: 'wrap', px: { xs: 2, sm: 0 } }}>
-            {selectedCategories.map((cat) => (
-              <Chip
-                key={cat.idCategory}
-                label={cat.categoryValue || cat.category || cat.value}
-                onDelete={() => handleSelectCategory(cat)}
-                color="error"
-                variant="outlined"
-                sx={{ borderColor: '#A31515', color: '#A31515', fontWeight: 600 }}
-              />
-            ))}
-            <Button onClick={() => { setSelectedCategories([]); handleFilter(1); }} sx={{ ml: 1 }}>
-              Limpar
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography sx={{ fontWeight: 600 }}>{selectedBrands.length} marca(s) selecionada(s):</Typography>
+              {selectedBrands.map((b, i) => (
+                <Chip
+                  key={i}
+                  label={b.brand || b.name || b.value || b.brandValue}
+                  size="small"
+                  onDelete={() => handleToggleBrand(b)}
+                  sx={{ bgcolor: '#fff', color: '#a31515', fontWeight: 600 }}
+                />
+              ))}
+            </Stack>
+            <Button onClick={() => { setSelectedBrands([]); handleFilter(); }} sx={{ ml: 1 }}>
+              Limpar marcas
             </Button>
           </Box>
         )}
@@ -299,27 +240,44 @@ function Itens() {
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           PaperProps={{
-            sx: { backgroundColor: "#a31515", color: "#fff", width: 240 },
+            sx: { backgroundColor: "#a31515", color: "#fff", width: 260, p: 2, boxShadow: 6 },
           }}
         >
           <Typography sx={{ p: 2, fontWeight: "bold" }}>
-            Filtro Avançado
+            Marcas
           </Typography>
 
-          <List>
-            {categories.map((cat) => (
+          <List sx={{ 
+            maxHeight: '60vh', 
+            overflow: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'rgba(255, 255, 255, 0.4)',
+              borderRadius: '10px',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+              },
+            },
+          }}>
+            {brands.map((b, i) => (
               <ListItem
-                key={cat.idCategory}
+                key={i}
                 button
-                onClick={() => handleSelectCategory(cat)}
+                onClick={() => handleToggleBrand(b)}
+                sx={{ '&:hover': { backgroundColor: 'rgba(255,255,255,0.06)' } }}
               >
+                <ListItemText primary={b.brand || b.name || b.value || b.brandValue || '—'} sx={{ color: '#fff' }} />
                 <Checkbox
-                  checked={selectedCategories.some(
-                    (category) => category.idCategory === cat.idCategory
-                  )}
-                  sx={{ color: "#fff", "&.Mui-checked": { color: "#fff" } }}
+                  checked={selectedBrands.some((sb) => (sb.brand || sb.name || sb.value || sb.brandValue) === (b.brand || b.name || b.value || b.brandValue))}
+                  sx={{ color: '#fff', '&.Mui-checked': { color: '#fff' } }}
                 />
-                <ListItemText primary={cat.categoryValue} />
               </ListItem>
             ))}
 
@@ -330,49 +288,35 @@ function Itens() {
               />
             </ListItem>
           </List>
+          {/* Removed Limpar/Aplicar buttons: selecting a brand updates the list immediately */}
         </Drawer>
-        {/* Cards dos itens */}
-        <Box sx={styles.cardsGrid}>
+        {/* Lista dos itens */}
+        <Box sx={{ mt: 2 }}>
           {loading ? (
             <Box sx={{ width: "100%", textAlign: "center", py: 4 }}>
               <CircularProgress color="error" />
-              <Typography sx={{ mt: 1, color: "#555" }}>
-                Carregando Itens...
-              </Typography>
+              <Typography sx={{ mt: 1, color: "#555" }}>Carregando Itens...</Typography>
             </Box>
-          ) : itens.length > 0 ? (
-            itens.map((item, idx) => (
-              <CardItem
-                item={item}
-                key={item.idItem ?? idx}
-                index={idx}
-                onOpenModal={handleOpenModal}
-              />
-            ))
+          ) : itens && itens.length > 0 ? (
+            <List>
+              {itens.map((item, idx) => (
+                <ListItem key={item.idItem ?? idx} divider>
+                  <ListItemText
+                    primary={`${item.brand || item.name || "Item"} — ${item.description || item.name || ""}`}
+                    secondary={`Quantidade: ${item.currentQuantity ?? item.totalQuantity ?? "—"} • Atualizado: ${item.lastUpdated ? formatDateTimeBR(item.lastUpdated) : "—"}`}
+                  />
+                  <ListItemSecondaryAction>
+                    <Button variant="contained" size="small" color="error" onClick={() => openQuantityModal(item)}>
+                      Ação
+                    </Button>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
           ) : (
-            <Typography sx={{ textAlign: "center", width: "100%", mt: 4 }}>
-              {errorMessage || "Nenhum item encontrado."}
-            </Typography>
+            <Typography sx={{ textAlign: "center", width: "100%", mt: 4 }}>{errorMessage || "Nenhum item encontrado."}</Typography>
           )}
         </Box>
-        {/* COMPONENTE DE PAGINAÇÃO */}
-        {totalPages > 1 && !loading && (
-          <Box sx={styles.paginationBox}>
-            <Pagination
-              count={totalPages}
-              page={page}
-              onChange={handlePageChange}
-              color="primary"
-              sx={{
-                "& .MuiPaginationItem-root": { color: styles.senaiRed },
-                "& .Mui-selected": {
-                  backgroundColor: styles.senaiRed,
-                  color: "white",
-                },
-              }}
-            />
-          </Box>
-        )}
       </Box>
       <Footer />
 
@@ -383,6 +327,14 @@ function Itens() {
         onSuccess={(msg) => setSuccessMessage(msg)}
         onError={(msg) => setErrorModalMessage(msg)}
         onItemDeleteSuccess={handleItemDeleteSuccess}
+      />
+
+      <QuantityModal
+        open={quantityModalOpen}
+        onClose={() => setQuantityModalOpen(false)}
+        item={selectedForQuantity}
+        onSuccess={(msg) => { setSuccessMessage(msg); handleFilter(); }}
+        onError={(msg) => setErrorModalMessage(msg)}
       />
       {/* Modal de sucesso */}
       {successMessage && (

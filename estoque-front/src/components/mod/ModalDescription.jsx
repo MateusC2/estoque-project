@@ -33,7 +33,7 @@ export default function ModalDescription({
     const fileInputRef = useRef(null);
     const [itemDetails, setItemDetails] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [idLot, setIdLot] = useState("");
+    // idLot não é mais necessário com a nova API que atualiza por idItem
     const [form, setForm] = useState({ quantity: "", action: "" });
     const [selectedFile, setSelectedFile] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -41,8 +41,9 @@ export default function ModalDescription({
     const [isDeleting, setIsDeleting] = useState(false);
     const getAvailableActions = () => {
       return [
-        { label: "Entrada", value: "adicionar" },
-        { label: "Retirar", value: "retirar" },
+        { label: "Entrada", value: "ENTRADA" },
+        { label: "Saída", value: "SAIDA" },
+        { label: "Ajuste", value: "AJUSTE" },
       ];
     };
     
@@ -51,15 +52,11 @@ export default function ModalDescription({
       setLoading(true);
       try {
         const response = await api.getItensID(id);
-        const item = response.data.item?.[0];
+        const raw = response.data?.data || response.data?.item || response.data || null;
+        const item = Array.isArray(raw) ? raw[0] : raw;
+
         if (item) {
           setItemDetails(item);
-          
-          const mainLot = (Array.isArray(item.lots) && item.lots.length > 0) 
-            ? item.lots[0] 
-            : (item.lots?.idLot ? item.lots : null);
-          
-          setIdLot(mainLot?.idLot ?? mainLot?.id ?? "");
         } else {
           onError?.("Item não encontrado.");
         }
@@ -75,7 +72,6 @@ export default function ModalDescription({
       if (open) {
         setForm({ quantity: "", action: "" });
         setItemDetails(null);
-        setIdLot("");
         setSelectedFile(null); 
         setIsConfirmingDelete(false); 
       }
@@ -159,39 +155,36 @@ export default function ModalDescription({
 
     const handleConfirm = async () => {
       const quantityInput = parseInt(form.quantity, 10);
-      if (!form.action || !quantityInput || quantityInput <= 0) {
+      if (!form.action || isNaN(quantityInput) || quantityInput <= 0) {
         onError?.("Ação e quantidade válida (> 0) são obrigatórias.");
         return;
       }
-      if (!idLot) {
-        onError?.("Lote principal não identificado. Não é possível realizar a ação.");
+      if (!itemDetails?.idItem) {
+        onError?.("ID do item inválido. Não é possível realizar a ação.");
         return;
       }
 
       try {
-        let finalQuantityToSend;
-        let isAjustAction = false;
+        let payloadType = form.action; // espera ENTRADA / SAIDA / AJUSTE
+        let payload = { quantityChange: quantityInput, type: payloadType };
 
-        if (form.action === "retirar") {
-          finalQuantityToSend = quantityInput * -1;
-          isAjustAction = false;
-        } else { 
-          finalQuantityToSend = quantityInput;
-          isAjustAction = false;
+        // Para SAIDA enviamos quantityChange positivo (API entende type)
+        if (payloadType === 'SAIDA') {
+          payload = { quantityChange: quantityInput, type: 'SAIDA' };
         }
 
-        const payload = {
-          quantity: finalQuantityToSend,
-          isAjust: isAjustAction,
-        };
+        if (payloadType === 'AJUSTE') {
+          payload = { quantityChange: quantityInput, type: 'AJUSTE' };
+        }
 
-        const response = await api.CreateLot(payload, idLot);
+        const response = await api.updateItemQuantity(itemDetails.idItem, payload);
 
         if (response.data?.success) {
           onSuccess?.(response.data.message || "Operação realizada com sucesso!");
-          onClose?.(); 
+          await fetchItemById(itemDetails.idItem);
+          onClose?.();
         } else {
-          onError?.(response.data?.details || "Ocorreu um erro na operação.");
+          onError?.(response.data?.error || response.data?.details || "Ocorreu um erro na operação.");
         }
       } catch (err) {
         onError?.(err.response?.data?.error || "Erro inesperado na operação.");
@@ -335,7 +328,7 @@ export default function ModalDescription({
                     ? itemDetails.technicalSpecs.map((s) => s.technicalSpecValue).join(", ")
                     : "—"}
                 </Typography>
-                <Typography>Quantidade Total: {itemDetails.totalQuantity ?? "—"}</Typography>
+                <Typography>Quantidade Atual: {itemDetails.currentQuantity ?? itemDetails.totalQuantity ?? "—"}</Typography>
                 <Typography>Estoque Mínimo: {itemDetails.minimumStock ?? "—"}</Typography>
                 <Typography>Número do SAP: {itemDetails.sapCode || "—"}</Typography>
 
@@ -343,14 +336,14 @@ export default function ModalDescription({
                 <Box mt={3}>
                   {/* Campo 1: Quantidade */}
                   <Typography gutterBottom>
-                    {form.action === 'reajustar' ? 'Nova Quantidade Total' : 'Quantidade'}
+                    {form.action === 'AJUSTE' ? 'Nova Quantidade Total' : 'Quantidade'}
                   </Typography>
                   <TextField 
                     fullWidth 
                     name="quantity" 
                     value={form.quantity} 
                     onChange={handleChange} 
-                    placeholder={form.action === 'reajustar' ? 'Total Desejado' : 'Qtd. Movimentação'}
+                    placeholder={form.action === 'AJUSTE' ? 'Total Desejado' : 'Qtd. Movimentação'}
                     type="number"
                     inputProps={{ min: 1 }}
                     size="small"

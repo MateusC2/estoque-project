@@ -30,6 +30,91 @@ module.exports = class ItemController {
   }
 
   /**
+   * Listar todas as marcas (brands) únicas cadastradas
+   */
+  static async getBrands(req, res) {
+    try {
+      const query = `
+        SELECT DISTINCT brand
+        FROM item
+        WHERE brand IS NOT NULL
+        ORDER BY brand ASC
+      `;
+      const brands = await queryAsync(query);
+
+      return handleResponse(res, 200, {
+        success: true,
+        message: "Marcas obtidas com sucesso.",
+        data: brands,
+        arrayName: "brands",
+      });
+    } catch (error) {
+      console.error("Erro ao buscar marcas:", error);
+      return handleResponse(res, 500, {
+        success: false,
+        error: "Erro interno do servidor",
+        details: error.message,
+      });
+    }
+  }
+
+  /**
+   * Criar apenas uma marca (sem descrição)
+   */
+  static async createBrand(req, res) {
+    const { brand } = req.body;
+
+    // Validação básica
+    if (!brand || String(brand).trim() === "") {
+      return handleResponse(res, 400, {
+        success: false,
+        error: "Marca (brand) é obrigatória.",
+      });
+    }
+
+    try {
+      const cleanBrand = String(brand).trim();
+
+      // Verificar se marca já existe
+      const checkQuery = "SELECT idItem FROM item WHERE brand = ? LIMIT 1";
+      const [existing] = await queryAsync(checkQuery, [cleanBrand]);
+
+      if (existing) {
+        return handleResponse(res, 409, {
+          success: false,
+          error: "Marca já cadastrada.",
+        });
+      }
+
+      // Inserir marca com description vazia e quantidade 0
+      const query = `
+        INSERT INTO item (brand, description, currentQuantity)
+        VALUES (?, ?, ?)
+      `;
+      const result = await queryAsync(query, [cleanBrand, "", 0]);
+
+      return handleResponse(res, 201, {
+        success: true,
+        message: "Marca criada com sucesso.",
+        data: {
+          idItem: result.insertId,
+          brand: cleanBrand,
+          description: "",
+          currentQuantity: 0,
+        },
+        arrayName: "item",
+      });
+    } catch (error) {
+      console.error("Erro ao criar marca:", error);
+      return handleResponse(res, 500, {
+        success: false,
+        error: "Erro interno do servidor",
+        details: error.message,
+      });
+    }
+  }
+
+  /**
    * Obter detalhes de um item específico
    */
   static async getItemById(req, res) {
@@ -85,8 +170,26 @@ module.exports = class ItemController {
       const params = [];
 
       if (brand) {
-        query += " AND brand LIKE ?";
-        params.push(`%${brand}%`);
+        // Support array of brands (exact match OR), comma-separated string, or single string (partial match)
+        if (Array.isArray(brand)) {
+          const cleaned = brand.map((b) => String(b).trim()).filter((b) => b);
+          if (cleaned.length > 0) {
+            const placeholders = cleaned.map(() => "?").join(",");
+            query += ` AND brand IN (${placeholders})`;
+            params.push(...cleaned);
+          }
+        } else if (typeof brand === "string" && brand.includes(",")) {
+          const arr = brand.split(",").map((b) => b.trim()).filter((b) => b);
+          if (arr.length > 0) {
+            const placeholders = arr.map(() => "?").join(",");
+            query += ` AND brand IN (${placeholders})`;
+            params.push(...arr);
+          }
+        } else {
+          // single string -> partial match (backwards compatible)
+          query += " AND brand LIKE ?";
+          params.push(`%${brand}%`);
+        }
       }
 
       if (description) {

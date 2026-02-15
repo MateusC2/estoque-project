@@ -9,25 +9,35 @@ const api = axios.create({
 });
 
 const sheets = {
-  
-  getItens: (config) => api.get(`items/`, config),
-  getItensID: (id_item) => api.get(`item/${id_item}/details`, id_item),
-  getLocations: () => api.get("location"),
-  getTransactions: () => api.get(`transactions/`),
-  CreateLot: (lot, idLot) => api.put(`lot/quantity/${idLot}`, lot),
-  filterItens: (data) => api.post(`items/filter`, data),
-  postImage: (itemId, formData) => {
+  // Novos endpoints alinhados à API fornecida
+  getItems: (config) => api.get(`items`, config),
+  getItemById: (idItem) => api.get(`items/${idItem}`),
+  filterItems: (data) => api.post(`items/filter`, data),
+  createItem: (itemData) => api.post(`items`, itemData),
+  updateItemQuantity: (idItem, payload) => api.put(`items/${idItem}/quantity`, payload),
+  deleteItem: (idItem) => api.delete(`items/${idItem}`),
 
-    return api.post(`item/image/${itemId}`, formData);
-  },
+  getTransactions: () => api.get(`transactions`),
+  getTransactionsByItem: (idItem) => api.get(`transactions/item/${idItem}`),
+
+  // Lista de marcas (endpoint adicionado na API)
+  getBrands: () => api.get(`items/brands`),
+
+  // Outros recursos auxiliares (categorias, técnico, imagem) - mantidos
+  getLocations: () => api.get("location"),
+  postImage: (itemId, formData) => api.post(`item/image/${itemId}`, formData),
   createCategory: (data) => api.post("category", data),
   createLocation: (data) => api.post("location", data),
   getCategories: () => api.get("category"),
   getTechnicalSpecs: () => api.get(`technicalSpec/`),
-  createTechnicalSpec: (technicalSpecKey) =>
-    api.post(`technicalSpec/`, technicalSpecKey),
-  postAddItem: (itemData) => api.post(`/item`, itemData),
-  deleteItem: (idItem) => api.delete(`item/${idItem}`),
+  createTechnicalSpec: (technicalSpecKey) => api.post(`technicalSpec/`, technicalSpecKey),
+
+  // Backward-compatible aliases (mantêm compatibilidade com código existente)
+  getItens: (config) => api.get(`items`, config),
+  getItensID: (id_item) => api.get(`items/${id_item}`),
+  filterItens: (data) => api.post(`items/filter`, data),
+  postAddItem: (itemData) => api.post(`items`, itemData),
+  CreateLot: (lot, idLot) => api.put(`items/${idLot}/quantity`, lot),
 };
 
 export default sheets;
